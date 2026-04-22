@@ -161,152 +161,595 @@ const SectionHeader = ({ title, subtitle, action }) => (
   </div>
 );
 
-const DashboardHome = ({ userName }) => (
-  <div>
-    <SectionHeader title={`Good morning, ${userName || 'there'}`} subtitle="Here's your content system for April 2026" />
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <StatCard label="Videos Planned" value={monthData.planned} icon={Calendar} />
-      <StatCard label="Shot This Month" value={monthData.shot} total={monthData.planned} icon={Video} />
-      <StatCard label="Ready for Review" value={monthData.review} icon={Clock} accent />
-      <StatCard label="Published" value={monthData.uploaded} icon={CheckCircle2} />
-    </div>
-    <div className="grid lg:grid-cols-3 gap-6 mb-6">
-      <div className="lg:col-span-2 bg-white rounded-2xl p-6 border" style={{ borderColor: COLORS.border }}>
-        <div className="flex items-center justify-between mb-6">
-          <h3 style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy }}>April Progress</h3>
-          <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: COLORS.gold + '20', color: COLORS.gold, fontFamily: 'DM Sans', fontWeight: 600 }}>70% Complete</span>
+  const DashboardHome = ({ userName, clientId }) => {
+    const [stats, setStats] = useState({ planned: 0, shot: 0, review: 0, published: 0 });
+    const [reelsCount, setReelsCount] = useState({ shot: 0, planned: 0 });
+    const [longsCount, setLongsCount] = useState({ shot: 0, planned: 0 });
+    const [nextPayment, setNextPayment] = useState(null);
+    const [recentActivity, setRecentActivity] = useState([]);
+    const [loading, setLoading] = useState(true);
+  
+    useEffect(() => {
+      const loadData = async () => {
+        const { data: allVideos } = await supabase.from('videos').select('*');
+        if (allVideos) {
+          const planned = allVideos.length;
+          const shot = allVideos.filter(v => !['Planned', 'Script Ready'].includes(v.status)).length;
+          const review = allVideos.filter(v => v.status === 'Ready for Review').length;
+          const published = allVideos.filter(v => v.status === 'Published').length;
+          setStats({ planned, shot, review, published });
+  
+          const reels = allVideos.filter(v => v.category === 'Reel');
+          const longs = allVideos.filter(v => ['Talking Head', 'Documentary', 'Educational'].includes(v.category));
+          setReelsCount({ shot: reels.filter(v => !['Planned', 'Script Ready'].includes(v.status)).length, planned: reels.length });
+          setLongsCount({ shot: longs.filter(v => !['Planned', 'Script Ready'].includes(v.status)).length, planned: longs.length });
+        }
+  
+        const { data: payments } = await supabase.from('payments').select('*').eq('status', 'Upcoming').order('due_date', { ascending: true }).limit(1);
+        if (payments && payments.length > 0) setNextPayment(payments[0]);
+  
+        const { data: activity } = await supabase.from('videos').select('*').order('updated_at', { ascending: false }).limit(4);
+        if (activity) setRecentActivity(activity);
+  
+        setLoading(false);
+      };
+      loadData();
+    }, [clientId]);
+  
+    if (loading) {
+      return <div className="text-center py-20" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Loading dashboard...</div>;
+    }
+  
+    const daysRemaining = nextPayment ? Math.max(0, Math.ceil((new Date(nextPayment.due_date) - new Date()) / (1000 * 60 * 60 * 24))) : 0;
+    const completionPct = stats.planned > 0 ? Math.round((stats.published / stats.planned) * 100) : 0;
+  
+    return (
+      <div>
+        <SectionHeader title={`Good morning, ${userName || 'there'}`} subtitle={`Here's your content system for ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`} />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard label="Videos Planned" value={stats.planned} icon={Calendar} />
+          <StatCard label="Shot This Month" value={stats.shot} total={stats.planned} icon={Video} />
+          <StatCard label="Ready for Review" value={stats.review} icon={Clock} accent />
+          <StatCard label="Published" value={stats.published} icon={CheckCircle2} />
         </div>
-        <div className="space-y-5">
-          <div>
-            <div className="flex justify-between mb-2 text-sm" style={{ fontFamily: 'DM Sans' }}>
-              <span style={{ color: COLORS.navy, fontWeight: 500 }}>Reels</span>
-              <span style={{ color: COLORS.muted }}>{monthData.reelsShot} / {monthData.reelsPlanned}</span>
+        <div className="grid lg:grid-cols-3 gap-6 mb-6">
+          <div className="lg:col-span-2 bg-white rounded-2xl p-6 border" style={{ borderColor: COLORS.border }}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy }}>Monthly Progress</h3>
+              <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: COLORS.gold + '20', color: COLORS.gold, fontFamily: 'DM Sans', fontWeight: 600 }}>{completionPct}% Complete</span>
             </div>
-            <ProgressBar value={monthData.reelsShot} total={monthData.reelsPlanned} color={COLORS.navy} />
+            <div className="space-y-5">
+              <div>
+                <div className="flex justify-between mb-2 text-sm" style={{ fontFamily: 'DM Sans' }}>
+                  <span style={{ color: COLORS.navy, fontWeight: 500 }}>Reels</span>
+                  <span style={{ color: COLORS.muted }}>{reelsCount.shot} / {reelsCount.planned}</span>
+                </div>
+                <ProgressBar value={reelsCount.shot} total={Math.max(reelsCount.planned, 1)} color={COLORS.navy} />
+              </div>
+              <div>
+                <div className="flex justify-between mb-2 text-sm" style={{ fontFamily: 'DM Sans' }}>
+                  <span style={{ color: COLORS.navy, fontWeight: 500 }}>Long-form Videos</span>
+                  <span style={{ color: COLORS.muted }}>{longsCount.shot} / {longsCount.planned}</span>
+                </div>
+                <ProgressBar value={longsCount.shot} total={Math.max(longsCount.planned, 1)} color={COLORS.gold} />
+              </div>
+              <div>
+                <div className="flex justify-between mb-2 text-sm" style={{ fontFamily: 'DM Sans' }}>
+                  <span style={{ color: COLORS.navy, fontWeight: 500 }}>Published & Live</span>
+                  <span style={{ color: COLORS.muted }}>{stats.published} / {stats.planned}</span>
+                </div>
+                <ProgressBar value={stats.published} total={Math.max(stats.planned, 1)} color={COLORS.green} />
+              </div>
+            </div>
           </div>
-          <div>
-            <div className="flex justify-between mb-2 text-sm" style={{ fontFamily: 'DM Sans' }}>
-              <span style={{ color: COLORS.navy, fontWeight: 500 }}>Long-form Videos</span>
-              <span style={{ color: COLORS.muted }}>{monthData.longsShot} / {monthData.longsPlanned}</span>
-            </div>
-            <ProgressBar value={monthData.longsShot} total={monthData.longsPlanned} color={COLORS.gold} />
+          <div className="bg-white rounded-2xl p-6 border" style={{ borderColor: COLORS.border }}>
+            <h3 className="mb-4" style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy }}>Next Payment</h3>
+            {nextPayment ? (
+              <>
+                <div style={{ fontFamily: 'Fraunces', fontSize: '2rem', fontWeight: 500, color: COLORS.navy, lineHeight: 1 }}>₹{Number(nextPayment.amount).toLocaleString('en-IN')}</div>
+                <div className="mt-2 text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Due {new Date(nextPayment.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                <div className="mt-4 p-3 rounded-lg flex items-center gap-2" style={{ backgroundColor: COLORS.gold + '15' }}>
+                  <Clock size={14} style={{ color: COLORS.gold }} />
+                  <span className="text-xs" style={{ color: COLORS.gold, fontFamily: 'DM Sans', fontWeight: 600 }}>{daysRemaining} days remaining</span>
+                </div>
+              </>
+            ) : (
+              <div className="text-sm py-4" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>No upcoming payments</div>
+            )}
+            <button className="w-full mt-4 py-2.5 rounded-lg text-sm font-medium transition-colors" style={{ backgroundColor: COLORS.navy, color: 'white', fontFamily: 'DM Sans' }}>View Invoice</button>
           </div>
-          <div>
-            <div className="flex justify-between mb-2 text-sm" style={{ fontFamily: 'DM Sans' }}>
-              <span style={{ color: COLORS.navy, fontWeight: 500 }}>Published & Live</span>
-              <span style={{ color: COLORS.muted }}>{monthData.uploaded} / {monthData.planned}</span>
+        </div>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-2xl p-6 border" style={{ borderColor: COLORS.border }}>
+            <h3 className="mb-4" style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy }}>Recent Activity</h3>
+            <div className="space-y-4">
+              {recentActivity.length === 0 ? (
+                <div className="text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>No recent activity</div>
+              ) : recentActivity.map((item, i) => (
+                <div key={item.id} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <div className="w-2 h-2 rounded-full mt-2" style={{ backgroundColor: item.status === 'Published' || item.status === 'Approved' ? COLORS.green : item.status === 'Ready for Review' ? COLORS.gold : COLORS.navy }} />
+                    {i < recentActivity.length - 1 && <div className="w-px flex-1 mt-1" style={{ backgroundColor: COLORS.border }} />}
+                  </div>
+                  <div className="flex-1 pb-4">
+                    <div className="text-xs mb-1" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{new Date(item.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                    <div className="text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{item.title} — {item.status}</div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <ProgressBar value={monthData.uploaded} total={monthData.planned} color={COLORS.green} />
+          </div>
+          <div className="bg-white rounded-2xl p-6 border" style={{ borderColor: COLORS.border }}>
+            <h3 className="mb-4" style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy }}>Quick Actions</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: 'Review Videos', icon: Eye, count: stats.review },
+                { label: 'Request Changes', icon: RefreshCw, count: null },
+                { label: 'Approve Content', icon: Check, count: null },
+                { label: 'Submit Feedback', icon: MessageSquare, count: null },
+                { label: 'Add Ad Budget', icon: DollarSign, count: null },
+                { label: 'View Analytics', icon: TrendingUp, count: null },
+              ].map((action, i) => (
+                <button key={i} className="p-4 rounded-xl border text-left transition-all hover:border-gray-400" style={{ borderColor: COLORS.border }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <action.icon size={18} style={{ color: COLORS.navy }} />
+                    {action.count > 0 && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: COLORS.gold, color: 'white', fontFamily: 'DM Sans', fontWeight: 600 }}>{action.count}</span>}
+                  </div>
+                  <div className="text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans', fontWeight: 500 }}>{action.label}</div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
-      <div className="bg-white rounded-2xl p-6 border" style={{ borderColor: COLORS.border }}>
-        <h3 className="mb-4" style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy }}>Next Payment</h3>
-        <div style={{ fontFamily: 'Fraunces', fontSize: '2rem', fontWeight: 500, color: COLORS.navy, lineHeight: 1 }}>₹2,50,000</div>
-        <div className="mt-2 text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Due April 28, 2026</div>
-        <div className="mt-4 p-3 rounded-lg flex items-center gap-2" style={{ backgroundColor: COLORS.gold + '15' }}>
-          <Clock size={14} style={{ color: COLORS.gold }} />
-          <span className="text-xs" style={{ color: COLORS.gold, fontFamily: 'DM Sans', fontWeight: 600 }}>6 days remaining</span>
+    );
+  };
+
+  const IdeasScripts = ({ clientId, userRole }) => {
+    const [tab, setTab] = useState('ideas');
+    const [subTab, setSubTab] = useState('reels');
+    const [suggestedReels, setSuggestedReels] = useState([]);
+    const [suggestedLongs, setSuggestedLongs] = useState([]);
+    const [approvedReels, setApprovedReels] = useState([]);
+    const [approvedLongs, setApprovedLongs] = useState([]);
+    const [scriptReels, setScriptReels] = useState([]);
+    const [scriptLongs, setScriptLongs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [generating, setGenerating] = useState(false);
+    const [scriptGeneratingId, setScriptGeneratingId] = useState(null);
+    const [scriptProgress, setScriptProgress] = useState(0);
+    const [scriptStage, setScriptStage] = useState('');
+    const [expandedScriptId, setExpandedScriptId] = useState(null);
+    const [error, setError] = useState('');
+    const [keyword, setKeyword] = useState('');
+    const [progress, setProgress] = useState(0);
+    const [progressStage, setProgressStage] = useState('');
+  
+    const loadData = async () => {
+      const { data: suggested } = await supabase
+        .from('ideas').select('*').eq('status', 'Suggested')
+        .order('created_at', { ascending: false });
+      const { data: approved } = await supabase
+        .from('ideas').select('*').eq('status', 'Approved')
+        .order('created_at', { ascending: false });
+      const { data: scripts } = await supabase
+        .from('scripts').select('*')
+        .in('status', ['Draft', 'Approved', 'In Production'])
+        .order('created_at', { ascending: false });
+  
+      if (suggested) {
+        setSuggestedReels(suggested.filter(i => i.format === 'Reel'));
+        setSuggestedLongs(suggested.filter(i => i.format === 'Long-form'));
+      }
+      if (approved) {
+        setApprovedReels(approved.filter(i => i.format === 'Reel'));
+        setApprovedLongs(approved.filter(i => i.format === 'Long-form'));
+      }
+      if (scripts) {
+        setScriptReels(scripts.filter(s => s.format === 'Reel'));
+        setScriptLongs(scripts.filter(s => s.format === 'Long-form'));
+      }
+      setLoading(false);
+    };
+  
+    useEffect(() => { loadData(); }, []);
+  
+    const currentFormat = subTab === 'reels' ? 'Reel' : 'Long-form';
+  
+    const handleGenerateAI = async () => {
+      setGenerating(true);
+      setError('');
+      setProgress(0);
+      setTab('ideas');
+  
+      const stages = [
+        { percent: 22, label: 'Scanning competitor videos...' },
+        { percent: 48, label: 'Analyzing viral patterns...' },
+        { percent: 72, label: 'Ranking by predicted performance...' },
+        { percent: 92, label: 'Finalizing your ideas...' },
+      ];
+  
+      let stageIndex = 0;
+      setProgressStage(stages[0].label);
+      setProgress(stages[0].percent);
+      stageIndex = 1;
+  
+      const progressInterval = setInterval(() => {
+        if (stageIndex < stages.length) {
+          setProgress(stages[stageIndex].percent);
+          setProgressStage(stages[stageIndex].label);
+          stageIndex++;
+        }
+      }, 1300);
+  
+      try {
+        await supabase.from('ideas').update({ status: 'Archived' })
+          .eq('status', 'Suggested').eq('format', currentFormat);
+  
+        const baseContext = 'Premium aesthetic clinic in India. Services: Botox, fillers, HydraFacial, dermal treatments. Audience: women 25-45, upper-middle class.';
+        const contextWithKeyword = keyword.trim()
+          ? `${baseContext} Focus especially on this topic or keyword: "${keyword.trim()}".`
+          : baseContext;
+  
+        const apiPromise = fetch('/api/generate-ideas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientContext: contextWithKeyword, format: currentFormat }),
+        }).then(r => r.json());
+  
+        const minAnimationTime = new Promise(r => setTimeout(r, 5500));
+        const [data] = await Promise.all([apiPromise, minAnimationTime]);
+        if (data.error) throw new Error(data.error);
+  
+        const rows = data.ideas.map(idea => ({
+          client_id: clientId || '11111111-1111-1111-1111-111111111111',
+          title: idea.title,
+          why_matters: idea.why_matters,
+          format: idea.format || currentFormat,
+          platform: idea.platform,
+          viral_score: idea.viral_score,
+          inspiration_source: idea.inspiration_source,
+          status: 'Suggested',
+        }));
+        const { error: insertError } = await supabase.from('ideas').insert(rows);
+        if (insertError) throw new Error(insertError.message);
+  
+        clearInterval(progressInterval);
+        setProgress(100);
+        setProgressStage('Ready');
+        await loadData();
+  
+        setTimeout(() => {
+          setGenerating(false);
+          setProgress(0);
+          setProgressStage('');
+          setKeyword('');
+        }, 600);
+      } catch (e) {
+        clearInterval(progressInterval);
+        setError(e.message);
+        setGenerating(false);
+        setProgress(0);
+        setProgressStage('');
+      }
+    };
+  
+    const handleApprove = async (id) => {
+      await supabase.from('ideas').update({ status: 'Approved' }).eq('id', id);
+      await loadData();
+    };
+  
+    const handleReject = async (id) => {
+      await supabase.from('ideas').update({ status: 'Rejected' }).eq('id', id);
+      await loadData();
+    };
+  
+    const handleDeleteIdea = async (id) => {
+      if (!confirm('Delete this idea?')) return;
+      await supabase.from('ideas').update({ status: 'Archived' }).eq('id', id);
+      await loadData();
+    };
+  
+    const handleDeleteScript = async (id) => {
+      if (!confirm('Delete this script?')) return;
+      await supabase.from('scripts').update({ status: 'Archived' }).eq('id', id);
+      await loadData();
+    };
+  
+    const handleUndoApprove = async (id) => {
+      await supabase.from('ideas').update({ status: 'Suggested' }).eq('id', id);
+      await loadData();
+    };
+  
+    const handleSendToScripts = async (idea) => {
+      const { error: insertError } = await supabase.from('scripts').insert({
+        idea_id: idea.id,
+        client_id: idea.client_id,
+        title: idea.title,
+        format: idea.format,
+        status: 'Draft',
+      });
+      if (insertError) { setError(insertError.message); return; }
+      await supabase.from('ideas').update({ status: 'In Production' }).eq('id', idea.id);
+      setTab('scripts');
+      await loadData();
+    };
+  
+    const handleGenerateScript = async (script) => {
+      setScriptGeneratingId(script.id);
+      setScriptProgress(0);
+      setError('');
+  
+      const stages = [
+        { percent: 25, label: 'Analyzing your approved idea...' },
+        { percent: 50, label: 'Writing the hook...' },
+        { percent: 75, label: 'Structuring main points and flow...' },
+        { percent: 92, label: 'Finalizing your script...' },
+      ];
+      let stageIndex = 0;
+      setScriptStage(stages[0].label);
+      setScriptProgress(stages[0].percent);
+      stageIndex = 1;
+  
+      const progressInterval = setInterval(() => {
+        if (stageIndex < stages.length) {
+          setScriptProgress(stages[stageIndex].percent);
+          setScriptStage(stages[stageIndex].label);
+          stageIndex++;
+        }
+      }, 1300);
+  
+      try {
+        const { data: ideaData } = await supabase.from('ideas').select('*').eq('id', script.idea_id).single();
+        const ideaForPrompt = ideaData || { title: script.title, format: script.format, platform: 'Instagram', why_matters: '' };
+  
+        const apiPromise = fetch('/api/generate-script', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idea: ideaForPrompt }),
+        }).then(r => r.json());
+  
+        const minAnimationTime = new Promise(r => setTimeout(r, 5500));
+        const [data] = await Promise.all([apiPromise, minAnimationTime]);
+        if (data.error) throw new Error(data.error);
+  
+        const { error: updateError } = await supabase.from('scripts').update({
+          hook: data.script.hook,
+          main_points: data.script.main_points,
+          cta: data.script.cta,
+          scenes: data.script.scenes,
+          important_lines: data.script.important_lines,
+          flow: data.script.flow,
+        }).eq('id', script.id);
+        if (updateError) throw new Error(updateError.message);
+  
+        clearInterval(progressInterval);
+        setScriptProgress(100);
+        setScriptStage('Ready');
+        setExpandedScriptId(script.id);
+        await loadData();
+  
+        setTimeout(() => {
+          setScriptGeneratingId(null);
+          setScriptProgress(0);
+          setScriptStage('');
+        }, 600);
+      } catch (e) {
+        clearInterval(progressInterval);
+        setError(e.message);
+        setScriptGeneratingId(null);
+        setScriptProgress(0);
+        setScriptStage('');
+      }
+    };
+  
+    let list = [];
+    if (tab === 'ideas') list = subTab === 'reels' ? suggestedReels : suggestedLongs;
+    else if (tab === 'approved') list = subTab === 'reels' ? approvedReels : approvedLongs;
+    else if (tab === 'scripts') list = subTab === 'reels' ? scriptReels : scriptLongs;
+  
+    const tabs = [
+      { id: 'ideas', label: 'Ideas', count: suggestedReels.length + suggestedLongs.length },
+      { id: 'approved', label: 'Approved', count: approvedReels.length + approvedLongs.length },
+      { id: 'scripts', label: 'Scripts', count: scriptReels.length + scriptLongs.length },
+    ];
+  
+    const emptyMessage = () => {
+      if (tab === 'ideas') return { title: `No ${subTab === 'reels' ? 'reel' : 'long-form'} ideas yet`, sub: `Click "Generate 6 Ideas with AI" to get ${subTab === 'reels' ? 'Reel' : 'Long-form'} ideas` };
+      if (tab === 'approved') return { title: `No approved ${subTab === 'reels' ? 'reels' : 'long-form'} yet`, sub: 'Approve ideas from the Ideas tab to see them here' };
+      return { title: `No ${subTab === 'reels' ? 'reel' : 'long-form'} scripts yet`, sub: 'Send an approved idea to Scripts from the Approved tab' };
+    };
+  
+    const ScriptSection = ({ label, text, placeholder }) => (
+      <div className="mb-4">
+        <div className="text-xs uppercase tracking-wider mb-1" style={{ color: COLORS.gold, fontFamily: 'DM Sans', fontWeight: 600, letterSpacing: '0.08em' }}>{label}</div>
+        <div className="text-sm whitespace-pre-wrap" style={{ color: text ? COLORS.navy : COLORS.muted, fontFamily: 'DM Sans', lineHeight: 1.6, fontStyle: text ? 'normal' : 'italic' }}>
+          {text || placeholder}
         </div>
-        <button className="w-full mt-4 py-2.5 rounded-lg text-sm font-medium transition-colors" style={{ backgroundColor: COLORS.navy, color: 'white', fontFamily: 'DM Sans' }}>View Invoice</button>
       </div>
-    </div>
-    <div className="grid lg:grid-cols-2 gap-6">
-      <div className="bg-white rounded-2xl p-6 border" style={{ borderColor: COLORS.border }}>
-        <h3 className="mb-4" style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy }}>This Week's Activity</h3>
-        <div className="space-y-4">
-          {[
-            { date: 'Apr 22', action: 'Lip Filler Reel is ready for your review', type: 'review' },
-            { date: 'Apr 21', action: 'Botox Transparency video entered editing', type: 'progress' },
-            { date: 'Apr 20', action: 'HydraFacial Documentary approved for publishing', type: 'success' },
-            { date: 'Apr 19', action: 'Morning Clinic Routine — shoot completed', type: 'progress' },
-          ].map((item, i) => (
-            <div key={i} className="flex gap-3">
-              <div className="flex flex-col items-center">
-                <div className="w-2 h-2 rounded-full mt-2" style={{ backgroundColor: item.type === 'success' ? COLORS.green : item.type === 'review' ? COLORS.gold : COLORS.navy }} />
-                {i < 3 && <div className="w-px flex-1 mt-1" style={{ backgroundColor: COLORS.border }} />}
-              </div>
-              <div className="flex-1 pb-4">
-                <div className="text-xs mb-1" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{item.date}</div>
-                <div className="text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{item.action}</div>
-              </div>
+    );
+  
+    return (
+      <div>
+        <SectionHeader
+          title="Ideas & Scripts"
+          subtitle="AI-researched content topics tailored for your niche"
+          action={(
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+              <input type="text" value={keyword} onChange={(e) => setKeyword(e.target.value)} disabled={generating}
+                placeholder="Keyword (optional)" className="px-3 py-2 rounded-lg border text-sm outline-none transition-all"
+                style={{ borderColor: COLORS.border, fontFamily: 'DM Sans', minWidth: 180, backgroundColor: 'white' }} />
+              <button onClick={handleGenerateAI} disabled={generating}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm transition-opacity"
+                style={{ backgroundColor: COLORS.gold, color: 'white', fontFamily: 'DM Sans', fontWeight: 500, opacity: generating ? 0.6 : 1 }}>
+                <Sparkles size={16} />
+                {generating ? 'Generating...' : `Generate 6 ${currentFormat === 'Reel' ? 'Reel' : 'Long-form'} Ideas`}
+              </button>
             </div>
-          ))}
-        </div>
-      </div>
-      <div className="bg-white rounded-2xl p-6 border" style={{ borderColor: COLORS.border }}>
-        <h3 className="mb-4" style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy }}>Quick Actions</h3>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: 'Review Videos', icon: Eye, count: 3 },
-            { label: 'Request Changes', icon: RefreshCw, count: null },
-            { label: 'Approve Content', icon: Check, count: null },
-            { label: 'Submit Feedback', icon: MessageSquare, count: null },
-            { label: 'Add Ad Budget', icon: DollarSign, count: null },
-            { label: 'View Analytics', icon: TrendingUp, count: null },
-          ].map((action, i) => (
-            <button key={i} className="p-4 rounded-xl border text-left transition-all hover:border-gray-400" style={{ borderColor: COLORS.border }}>
-              <div className="flex items-center justify-between mb-2">
-                <action.icon size={18} style={{ color: COLORS.navy }} />
-                {action.count && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: COLORS.gold, color: 'white', fontFamily: 'DM Sans', fontWeight: 600 }}>{action.count}</span>}
+          )}
+        />
+  
+        {error && (
+          <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: COLORS.red + '15', color: COLORS.red, fontFamily: 'DM Sans' }}>{error}</div>
+        )}
+  
+        {generating && (
+          <div className="mb-6 bg-white rounded-2xl p-6 border" style={{ borderColor: COLORS.border }}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} style={{ color: COLORS.gold }} />
+                <span style={{ fontFamily: 'Fraunces', fontSize: '1.125rem', fontWeight: 500, color: COLORS.navy }}>Generating premium {currentFormat === 'Reel' ? 'Reel' : 'Long-form'} ideas for your clinic</span>
               </div>
-              <div className="text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans', fontWeight: 500 }}>{action.label}</div>
+              <span className="text-sm" style={{ color: COLORS.gold, fontFamily: 'DM Sans', fontWeight: 600 }}>{progress}%</span>
+            </div>
+            <div className="h-2 rounded-full overflow-hidden mb-3" style={{ backgroundColor: COLORS.border }}>
+              <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${progress}%`, background: `linear-gradient(90deg, ${COLORS.navy} 0%, ${COLORS.gold} 100%)` }} />
+            </div>
+            <div className="text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans', fontStyle: 'italic' }}>{progressStage}</div>
+          </div>
+        )}
+  
+        <div className="flex gap-1 p-1 rounded-xl mb-6 inline-flex bg-white border" style={{ borderColor: COLORS.border }}>
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} className="px-5 py-2 rounded-lg text-sm transition-all flex items-center gap-2"
+              style={{ backgroundColor: tab === t.id ? COLORS.navy : 'transparent', color: tab === t.id ? 'white' : COLORS.muted, fontFamily: 'DM Sans', fontWeight: 500 }}>
+              <span>{t.label}</span>
+              {t.count > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-xs" style={{ backgroundColor: tab === t.id ? COLORS.gold : COLORS.border, color: tab === t.id ? 'white' : COLORS.muted, fontFamily: 'DM Sans', fontWeight: 600, minWidth: 20, textAlign: 'center' }}>
+                  {t.count}
+                </span>
+              )}
             </button>
           ))}
         </div>
-      </div>
-    </div>
-  </div>
-);
-
-const IdeasScripts = () => {
-  const [tab, setTab] = useState('ideas');
-  const [subTab, setSubTab] = useState('reels');
-  const list = tab === 'ideas' ? (subTab === 'reels' ? ideas.reels : ideas.longs) : scripts;
-  return (
-    <div>
-      <SectionHeader title="Ideas & Scripts" subtitle="What we're planning for you, informed by what's working in your niche"
-        action={<button className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm" style={{ backgroundColor: COLORS.navy, color: 'white', fontFamily: 'DM Sans' }}><Plus size={16} /> Request Topic</button>} />
-      <div className="flex gap-1 p-1 rounded-xl mb-6 inline-flex bg-white border" style={{ borderColor: COLORS.border }}>
-        {['ideas', 'scripts'].map(t => (
-          <button key={t} onClick={() => setTab(t)} className="px-5 py-2 rounded-lg text-sm transition-all capitalize"
-            style={{ backgroundColor: tab === t ? COLORS.navy : 'transparent', color: tab === t ? 'white' : COLORS.muted, fontFamily: 'DM Sans', fontWeight: 500 }}>{t}</button>
-        ))}
-      </div>
-      {tab === 'ideas' && (
+  
         <div className="flex gap-2 mb-6">
           {[{ id: 'reels', label: 'Reels' }, { id: 'longs', label: 'Long-form' }].map(s => (
             <button key={s.id} onClick={() => setSubTab(s.id)} className="px-4 py-1.5 rounded-full text-sm border transition-all"
-              style={{ borderColor: subTab === s.id ? COLORS.navy : COLORS.border, backgroundColor: subTab === s.id ? COLORS.navy : 'white', color: subTab === s.id ? 'white' : COLORS.muted, fontFamily: 'DM Sans' }}>{s.label}</button>
+              style={{ borderColor: subTab === s.id ? COLORS.navy : COLORS.border, backgroundColor: subTab === s.id ? COLORS.navy : 'white', color: subTab === s.id ? 'white' : COLORS.muted, fontFamily: 'DM Sans' }}>
+              {s.label}
+            </button>
           ))}
         </div>
-      )}
-      <div className="grid md:grid-cols-2 gap-4">
-        {list.map(item => (
-          <div key={item.id} className="bg-white rounded-2xl p-6 border transition-all hover:shadow-md" style={{ borderColor: COLORS.border }}>
-            <div className="flex items-start justify-between mb-3">
-              <StatusBadge status={item.status} />
-              {item.viral && (
-                <div className="flex items-center gap-1">
-                  <Star size={14} style={{ color: COLORS.gold, fill: COLORS.gold }} />
-                  <span className="text-sm" style={{ fontFamily: 'DM Sans', color: COLORS.navy, fontWeight: 600 }}>{item.viral}</span>
-                </div>
-              )}
-            </div>
-            <h3 className="mb-2" style={{ fontFamily: 'Fraunces', fontSize: '1.125rem', fontWeight: 500, color: COLORS.navy, lineHeight: 1.3 }}>{item.title}</h3>
-            <p className="text-sm mb-4" style={{ color: COLORS.muted, fontFamily: 'DM Sans', lineHeight: 1.5 }}>{item.why || item.hook}</p>
-            {item.duration && <div className="text-xs mb-3" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Duration: {item.duration}</div>}
-            <div className="flex gap-2 pt-3 border-t" style={{ borderColor: COLORS.border }}>
-              <button className="flex-1 py-2 text-sm rounded-lg" style={{ backgroundColor: COLORS.navy, color: 'white', fontFamily: 'DM Sans' }}>{tab === 'ideas' ? 'Approve' : 'View Script'}</button>
-              <button className="px-3 py-2 text-sm rounded-lg border" style={{ borderColor: COLORS.border, color: COLORS.muted, fontFamily: 'DM Sans' }}><MoreHorizontal size={16} /></button>
-            </div>
+  
+        {loading ? (
+          <div className="text-center py-10" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Loading...</div>
+        ) : list.length === 0 && !generating ? (
+          <div className="bg-white rounded-2xl p-10 border text-center" style={{ borderColor: COLORS.border }}>
+            <Lightbulb size={32} style={{ color: COLORS.muted, margin: '0 auto 12px' }} />
+            <div style={{ fontFamily: 'Fraunces', fontSize: '1.125rem', color: COLORS.navy, fontWeight: 500 }}>{emptyMessage().title}</div>
+            <div className="text-sm mt-2" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{emptyMessage().sub}</div>
           </div>
-        ))}
+        ) : tab === 'scripts' ? (
+          <div className="space-y-4">
+            {list.map(item => {
+              const hasContent = item.hook || item.main_points;
+              const isExpanded = expandedScriptId === item.id || !hasContent;
+              const isGenerating = scriptGeneratingId === item.id;
+              return (
+                <div key={item.id} className="bg-white rounded-2xl p-6 border transition-all" style={{ borderColor: COLORS.border }}>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <StatusBadge status={item.status} />
+                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: COLORS.navy + '10', color: COLORS.navy, fontFamily: 'DM Sans', fontWeight: 500 }}>{item.format}</span>
+                      </div>
+                      <h3 style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy, lineHeight: 1.3 }}>{item.title}</h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {hasContent && (
+                        <button onClick={() => setExpandedScriptId(isExpanded ? null : item.id)} className="p-1.5 rounded-lg border text-xs transition-colors hover:bg-gray-50" style={{ borderColor: COLORS.border, color: COLORS.muted, fontFamily: 'DM Sans' }}>
+                          {isExpanded ? 'Collapse' : 'Expand'}
+                        </button>
+                      )}
+                      <button onClick={() => handleDeleteScript(item.id)} className="p-1.5 rounded-lg border transition-colors hover:bg-red-50" style={{ borderColor: COLORS.border, color: COLORS.red }} title="Delete">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+  
+                  {isGenerating ? (
+                    <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: COLORS.cream }}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Sparkles size={14} style={{ color: COLORS.gold }} />
+                          <span className="text-sm" style={{ fontFamily: 'DM Sans', color: COLORS.navy, fontWeight: 500 }}>Writing your script</span>
+                        </div>
+                        <span className="text-xs" style={{ color: COLORS.gold, fontFamily: 'DM Sans', fontWeight: 600 }}>{scriptProgress}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ backgroundColor: COLORS.border }}>
+                        <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${scriptProgress}%`, background: `linear-gradient(90deg, ${COLORS.navy} 0%, ${COLORS.gold} 100%)` }} />
+                      </div>
+                      <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans', fontStyle: 'italic' }}>{scriptStage}</div>
+                    </div>
+                  ) : isExpanded ? (
+                    <div className="mt-4 pt-4 border-t" style={{ borderColor: COLORS.border }}>
+                      <ScriptSection label="Hook" text={item.hook} placeholder="— script not generated yet —" />
+                      <ScriptSection label="Main Points" text={item.main_points} placeholder="— the key points the doctor will cover —" />
+                      <ScriptSection label="Call to Action" text={item.cta} placeholder="— what the viewer should do at the end —" />
+                      <ScriptSection label="Scenes & B-roll" text={item.scenes} placeholder="— visual and shooting suggestions —" />
+                      <ScriptSection label="Important Lines" text={item.important_lines} placeholder="— lines to say word-for-word —" />
+                      <ScriptSection label="Flow" text={item.flow} placeholder="— full video flow from intro to outro —" />
+  
+                      {!hasContent && (
+                        <button onClick={() => handleGenerateScript(item)} className="w-full py-3 rounded-lg text-sm mt-2 flex items-center justify-center gap-2 transition-opacity hover:opacity-90" style={{ backgroundColor: COLORS.gold, color: 'white', fontFamily: 'DM Sans', fontWeight: 500 }}>
+                          <Sparkles size={16} />
+                          Generate Full Script with AI
+                        </button>
+                      )}
+                      {hasContent && (
+                        <button onClick={() => handleGenerateScript(item)} className="w-full py-2 rounded-lg text-sm mt-2 border transition-colors hover:bg-gray-50" style={{ borderColor: COLORS.border, color: COLORS.muted, fontFamily: 'DM Sans' }}>
+                          Regenerate Script
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-4">
+            {list.map(item => (
+              <div key={item.id} className="bg-white rounded-2xl p-6 border transition-all hover:shadow-md" style={{ borderColor: COLORS.border }}>
+                <div className="flex items-start justify-between mb-3">
+                  <StatusBadge status={item.status} />
+                  <div className="flex items-center gap-2">
+                    {item.viral_score && (
+                      <div className="flex items-center gap-1">
+                        <Star size={14} style={{ color: COLORS.gold, fill: COLORS.gold }} />
+                        <span className="text-sm" style={{ fontFamily: 'DM Sans', color: COLORS.navy, fontWeight: 600 }}>{item.viral_score}</span>
+                      </div>
+                    )}
+                    <button onClick={() => handleDeleteIdea(item.id)} className="p-1 rounded-lg transition-colors hover:bg-red-50" style={{ color: COLORS.muted }} title="Delete">
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+                <h3 className="mb-2" style={{ fontFamily: 'Fraunces', fontSize: '1.125rem', fontWeight: 500, color: COLORS.navy, lineHeight: 1.3 }}>{item.title}</h3>
+                {item.why_matters && <p className="text-sm mb-3" style={{ color: COLORS.muted, fontFamily: 'DM Sans', lineHeight: 1.5 }}>{item.why_matters}</p>}
+                {item.inspiration_source && <p className="text-xs mb-3" style={{ color: COLORS.gold, fontFamily: 'DM Sans', fontStyle: 'italic' }}>✨ {item.inspiration_source}</p>}
+  
+                {tab === 'ideas' && (
+                  <div className="flex gap-2 pt-3 border-t" style={{ borderColor: COLORS.border }}>
+                    <button onClick={() => handleApprove(item.id)} className="flex-1 py-2 text-sm rounded-lg transition-opacity hover:opacity-90" style={{ backgroundColor: COLORS.navy, color: 'white', fontFamily: 'DM Sans' }}>Approve</button>
+                    <button onClick={() => handleReject(item.id)} className="flex-1 py-2 text-sm rounded-lg border transition-colors hover:bg-gray-50" style={{ borderColor: COLORS.border, color: COLORS.muted, fontFamily: 'DM Sans' }}>Reject</button>
+                  </div>
+                )}
+  
+                {tab === 'approved' && (
+                  <div className="flex gap-2 pt-3 border-t" style={{ borderColor: COLORS.border }}>
+                    <button onClick={() => handleSendToScripts(item)} className="flex-1 py-2 text-sm rounded-lg transition-opacity hover:opacity-90" style={{ backgroundColor: COLORS.gold, color: 'white', fontFamily: 'DM Sans', fontWeight: 500 }}>Send to Scripts →</button>
+                    <button onClick={() => handleUndoApprove(item.id)} className="px-3 py-2 text-sm rounded-lg border transition-colors hover:bg-gray-50" style={{ borderColor: COLORS.border, color: COLORS.muted, fontFamily: 'DM Sans' }}>Undo</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
-  );
-};
-
+    );
+  };
 const Shooting = () => {
   const [filter, setFilter] = useState('All');
   const filtered = filter === 'All' ? videos : videos.filter(v => v.category === filter);
@@ -765,7 +1208,7 @@ export default function App() {
   }
 
   const sectionMap = {
-    home: <DashboardHome userName={userRole?.full_name} />, ideas: <IdeasScripts />, shooting: <Shooting />, editing: <EditingReview />,
+    home: <DashboardHome userName={userRole?.full_name} clientId={userRole?.client_id} />, ideas: <IdeasScripts clientId={userRole?.client_id} userRole={userRole} />, shooting: <Shooting />, editing: <EditingReview />,
     thumbnails: <Thumbnails />, publishing: <Publishing />, ads: <Ads />, payments: <Payments />,
     analytics: <Analytics />, feedback: <Feedback />, upgrade: <Upgrade />,
   };
