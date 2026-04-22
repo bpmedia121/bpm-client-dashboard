@@ -449,33 +449,67 @@ const Thumbnails = () => {
   );
 };
 
-const Publishing = () => (
-  <div>
-    <SectionHeader title="Publishing & SEO" subtitle="Published performance, scheduled content, and search visibility" />
-    <div className="bg-white rounded-2xl border overflow-hidden" style={{ borderColor: COLORS.border }}>
-      <div className="grid grid-cols-12 px-6 py-3 text-xs uppercase tracking-wider" style={{ backgroundColor: COLORS.cream, color: COLORS.muted, fontFamily: 'DM Sans', fontWeight: 600 }}>
-        <div className="col-span-4">Video</div><div className="col-span-1">Platform</div><div className="col-span-1 text-right">Views</div><div className="col-span-1 text-right">Likes</div><div className="col-span-1 text-right">CTR</div><div className="col-span-1 text-right">Ret.</div><div className="col-span-3">Verdict</div>
-      </div>
-      {publishedVideos.map(v => (
-        <div key={v.id} className="grid grid-cols-12 px-6 py-4 items-center border-t hover:bg-gray-50 transition-colors" style={{ borderColor: COLORS.border }}>
-          <div className="col-span-4">
-            <div style={{ fontFamily: 'DM Sans', fontWeight: 500, color: COLORS.navy }}>{v.title}</div>
-            <div className="text-xs mt-0.5" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>SEO: {v.keyword}</div>
-          </div>
-          <div className="col-span-1 text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.platform}</div>
-          <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans', fontWeight: 500 }}>{v.views.toLocaleString()}</div>
-          <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{v.likes}</div>
-          <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{v.ctr}%</div>
-          <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{v.retention}%</div>
-          <div className="col-span-3">
-            <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#D1FAE5' : v.verdict.includes('Good') ? '#FEF3C7' : '#FEE2E2', color: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#065F46' : v.verdict.includes('Good') ? '#92400E' : '#991B1B', fontFamily: 'DM Sans', fontWeight: 500 }}>{v.verdict}</span>
-          </div>
+  const Publishing = () => (
+    <div>
+      <SectionHeader title="Publishing & SEO" subtitle="Published performance, scheduled content, and search visibility" />
+      
+      {/* Desktop table */}
+      <div className="hidden md:block bg-white rounded-2xl border overflow-hidden" style={{ borderColor: COLORS.border }}>
+        <div className="grid grid-cols-12 px-6 py-3 text-xs uppercase tracking-wider" style={{ backgroundColor: COLORS.cream, color: COLORS.muted, fontFamily: 'DM Sans', fontWeight: 600 }}>
+          <div className="col-span-4">Video</div><div className="col-span-1">Platform</div><div className="col-span-1 text-right">Views</div><div className="col-span-1 text-right">Likes</div><div className="col-span-1 text-right">CTR</div><div className="col-span-1 text-right">Ret.</div><div className="col-span-3">Verdict</div>
         </div>
-      ))}
+        {publishedVideos.map(v => (
+          <div key={v.id} className="grid grid-cols-12 px-6 py-4 items-center border-t hover:bg-gray-50 transition-colors" style={{ borderColor: COLORS.border }}>
+            <div className="col-span-4">
+              <div style={{ fontFamily: 'DM Sans', fontWeight: 500, color: COLORS.navy }}>{v.title}</div>
+              <div className="text-xs mt-0.5" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>SEO: {v.keyword}</div>
+            </div>
+            <div className="col-span-1 text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.platform}</div>
+            <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans', fontWeight: 500 }}>{v.views.toLocaleString()}</div>
+            <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{v.likes}</div>
+            <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{v.ctr}%</div>
+            <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{v.retention}%</div>
+            <div className="col-span-3">
+              <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#D1FAE5' : v.verdict.includes('Good') ? '#FEF3C7' : '#FEE2E2', color: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#065F46' : v.verdict.includes('Good') ? '#92400E' : '#991B1B', fontFamily: 'DM Sans', fontWeight: 500 }}>{v.verdict}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+  
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {publishedVideos.map(v => (
+          <div key={v.id} className="bg-white rounded-2xl p-5 border" style={{ borderColor: COLORS.border }}>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex-1 min-w-0">
+                <div style={{ fontFamily: 'Fraunces', fontSize: '1rem', fontWeight: 500, color: COLORS.navy }}>{v.title}</div>
+                <div className="text-xs mt-1" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.platform} · SEO: {v.keyword}</div>
+              </div>
+              <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap" style={{ backgroundColor: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#D1FAE5' : v.verdict.includes('Good') ? '#FEF3C7' : '#FEE2E2', color: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#065F46' : v.verdict.includes('Good') ? '#92400E' : '#991B1B', fontFamily: 'DM Sans', fontWeight: 500 }}>{v.verdict}</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2 pt-3 border-t" style={{ borderColor: COLORS.border }}>
+              <div>
+                <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Views</div>
+                <div style={{ fontFamily: 'DM Sans', fontWeight: 600, color: COLORS.navy }}>{v.views.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Likes</div>
+                <div style={{ fontFamily: 'DM Sans', fontWeight: 600, color: COLORS.navy }}>{v.likes}</div>
+              </div>
+              <div>
+                <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>CTR</div>
+                <div style={{ fontFamily: 'DM Sans', fontWeight: 600, color: COLORS.navy }}>{v.ctr}%</div>
+              </div>
+              <div>
+                <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Ret.</div>
+                <div style={{ fontFamily: 'DM Sans', fontWeight: 600, color: COLORS.navy }}>{v.retention}%</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
-  </div>
-);
-
+  );
 const Ads = () => {
   const [budget, setBudget] = useState(5000);
   return (
