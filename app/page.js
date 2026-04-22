@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 import {
   LayoutDashboard, Lightbulb, Video, Scissors, Image, Upload, Target,
   CreditCard, BarChart3, MessageSquare, Sparkles, Bell, Search, Menu, X,
   Check, Clock, AlertCircle, Play, Download, Eye, ThumbsUp, TrendingUp,
   ChevronRight, Plus, Filter, Calendar, DollarSign, Zap, Award, FileText,
-  CheckCircle2, Circle, ArrowUpRight, Star, MoreHorizontal, RefreshCw
+  CheckCircle2, Circle, ArrowUpRight, Star, MoreHorizontal, RefreshCw, LogOut
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart, PieChart, Pie, Cell } from 'recharts';
 
@@ -159,9 +161,9 @@ const SectionHeader = ({ title, subtitle, action }) => (
   </div>
 );
 
-const DashboardHome = () => (
+const DashboardHome = ({ userName }) => (
   <div>
-    <SectionHeader title="Good morning, Dr. Sharma" subtitle="Here's your content system for April 2026" />
+    <SectionHeader title={`Good morning, ${userName || 'there'}`} subtitle="Here's your content system for April 2026" />
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <StatCard label="Videos Planned" value={monthData.planned} icon={Calendar} />
       <StatCard label="Shot This Month" value={monthData.shot} total={monthData.planned} icon={Video} />
@@ -324,19 +326,19 @@ const Shooting = () => {
         ))}
       </div>
       <div className="bg-white rounded-2xl border overflow-hidden" style={{ borderColor: COLORS.border }}>
-        <div className="grid grid-cols-12 px-6 py-3 text-xs uppercase tracking-wider" style={{ backgroundColor: COLORS.cream, color: COLORS.muted, fontFamily: 'DM Sans', fontWeight: 600 }}>
+        <div className="hidden md:grid grid-cols-12 px-6 py-3 text-xs uppercase tracking-wider" style={{ backgroundColor: COLORS.cream, color: COLORS.muted, fontFamily: 'DM Sans', fontWeight: 600 }}>
           <div className="col-span-5">Video</div><div className="col-span-2">Category</div><div className="col-span-2">Shoot Date</div><div className="col-span-2">Status</div><div className="col-span-1"></div>
         </div>
         {filtered.map((v) => (
-          <div key={v.id} className="grid grid-cols-12 px-6 py-4 items-center border-t transition-colors hover:bg-gray-50" style={{ borderColor: COLORS.border }}>
-            <div className="col-span-5">
+          <div key={v.id} className="md:grid md:grid-cols-12 px-6 py-4 md:items-center border-t transition-colors hover:bg-gray-50" style={{ borderColor: COLORS.border }}>
+            <div className="md:col-span-5">
               <div style={{ fontFamily: 'DM Sans', fontWeight: 500, color: COLORS.navy }}>{v.title}</div>
-              <div className="text-xs mt-0.5" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Assigned to {v.assignee}</div>
+              <div className="text-xs mt-0.5" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.category} · {v.shootDate} · {v.assignee}</div>
             </div>
-            <div className="col-span-2 text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.category}</div>
-            <div className="col-span-2 text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.shootDate}</div>
-            <div className="col-span-2"><StatusBadge status={v.status} /></div>
-            <div className="col-span-1 text-right"><button style={{ color: COLORS.muted }}><ChevronRight size={18} /></button></div>
+            <div className="hidden md:block md:col-span-2 text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.category}</div>
+            <div className="hidden md:block md:col-span-2 text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.shootDate}</div>
+            <div className="md:col-span-2 mt-2 md:mt-0"><StatusBadge status={v.status} /></div>
+            <div className="hidden md:block md:col-span-1 text-right"><button style={{ color: COLORS.muted }}><ChevronRight size={18} /></button></div>
           </div>
         ))}
       </div>
@@ -449,67 +451,52 @@ const Thumbnails = () => {
   );
 };
 
-  const Publishing = () => (
-    <div>
-      <SectionHeader title="Publishing & SEO" subtitle="Published performance, scheduled content, and search visibility" />
-      
-      {/* Desktop table */}
-      <div className="hidden md:block bg-white rounded-2xl border overflow-hidden" style={{ borderColor: COLORS.border }}>
-        <div className="grid grid-cols-12 px-6 py-3 text-xs uppercase tracking-wider" style={{ backgroundColor: COLORS.cream, color: COLORS.muted, fontFamily: 'DM Sans', fontWeight: 600 }}>
-          <div className="col-span-4">Video</div><div className="col-span-1">Platform</div><div className="col-span-1 text-right">Views</div><div className="col-span-1 text-right">Likes</div><div className="col-span-1 text-right">CTR</div><div className="col-span-1 text-right">Ret.</div><div className="col-span-3">Verdict</div>
+const Publishing = () => (
+  <div>
+    <SectionHeader title="Publishing & SEO" subtitle="Published performance, scheduled content, and search visibility" />
+    <div className="hidden md:block bg-white rounded-2xl border overflow-hidden" style={{ borderColor: COLORS.border }}>
+      <div className="grid grid-cols-12 px-6 py-3 text-xs uppercase tracking-wider" style={{ backgroundColor: COLORS.cream, color: COLORS.muted, fontFamily: 'DM Sans', fontWeight: 600 }}>
+        <div className="col-span-4">Video</div><div className="col-span-1">Platform</div><div className="col-span-1 text-right">Views</div><div className="col-span-1 text-right">Likes</div><div className="col-span-1 text-right">CTR</div><div className="col-span-1 text-right">Ret.</div><div className="col-span-3">Verdict</div>
+      </div>
+      {publishedVideos.map(v => (
+        <div key={v.id} className="grid grid-cols-12 px-6 py-4 items-center border-t hover:bg-gray-50 transition-colors" style={{ borderColor: COLORS.border }}>
+          <div className="col-span-4">
+            <div style={{ fontFamily: 'DM Sans', fontWeight: 500, color: COLORS.navy }}>{v.title}</div>
+            <div className="text-xs mt-0.5" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>SEO: {v.keyword}</div>
+          </div>
+          <div className="col-span-1 text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.platform}</div>
+          <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans', fontWeight: 500 }}>{v.views.toLocaleString()}</div>
+          <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{v.likes}</div>
+          <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{v.ctr}%</div>
+          <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{v.retention}%</div>
+          <div className="col-span-3">
+            <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#D1FAE5' : v.verdict.includes('Good') ? '#FEF3C7' : '#FEE2E2', color: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#065F46' : v.verdict.includes('Good') ? '#92400E' : '#991B1B', fontFamily: 'DM Sans', fontWeight: 500 }}>{v.verdict}</span>
+          </div>
         </div>
-        {publishedVideos.map(v => (
-          <div key={v.id} className="grid grid-cols-12 px-6 py-4 items-center border-t hover:bg-gray-50 transition-colors" style={{ borderColor: COLORS.border }}>
-            <div className="col-span-4">
-              <div style={{ fontFamily: 'DM Sans', fontWeight: 500, color: COLORS.navy }}>{v.title}</div>
-              <div className="text-xs mt-0.5" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>SEO: {v.keyword}</div>
-            </div>
-            <div className="col-span-1 text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.platform}</div>
-            <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans', fontWeight: 500 }}>{v.views.toLocaleString()}</div>
-            <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{v.likes}</div>
-            <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{v.ctr}%</div>
-            <div className="col-span-1 text-right text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>{v.retention}%</div>
-            <div className="col-span-3">
-              <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#D1FAE5' : v.verdict.includes('Good') ? '#FEF3C7' : '#FEE2E2', color: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#065F46' : v.verdict.includes('Good') ? '#92400E' : '#991B1B', fontFamily: 'DM Sans', fontWeight: 500 }}>{v.verdict}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-  
-      {/* Mobile cards */}
-      <div className="md:hidden space-y-3">
-        {publishedVideos.map(v => (
-          <div key={v.id} className="bg-white rounded-2xl p-5 border" style={{ borderColor: COLORS.border }}>
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div className="flex-1 min-w-0">
-                <div style={{ fontFamily: 'Fraunces', fontSize: '1rem', fontWeight: 500, color: COLORS.navy }}>{v.title}</div>
-                <div className="text-xs mt-1" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.platform} · SEO: {v.keyword}</div>
-              </div>
-              <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap" style={{ backgroundColor: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#D1FAE5' : v.verdict.includes('Good') ? '#FEF3C7' : '#FEE2E2', color: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#065F46' : v.verdict.includes('Good') ? '#92400E' : '#991B1B', fontFamily: 'DM Sans', fontWeight: 500 }}>{v.verdict}</span>
-            </div>
-            <div className="grid grid-cols-4 gap-2 pt-3 border-t" style={{ borderColor: COLORS.border }}>
-              <div>
-                <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Views</div>
-                <div style={{ fontFamily: 'DM Sans', fontWeight: 600, color: COLORS.navy }}>{v.views.toLocaleString()}</div>
-              </div>
-              <div>
-                <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Likes</div>
-                <div style={{ fontFamily: 'DM Sans', fontWeight: 600, color: COLORS.navy }}>{v.likes}</div>
-              </div>
-              <div>
-                <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>CTR</div>
-                <div style={{ fontFamily: 'DM Sans', fontWeight: 600, color: COLORS.navy }}>{v.ctr}%</div>
-              </div>
-              <div>
-                <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Ret.</div>
-                <div style={{ fontFamily: 'DM Sans', fontWeight: 600, color: COLORS.navy }}>{v.retention}%</div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      ))}
     </div>
-  );
+    <div className="md:hidden space-y-3">
+      {publishedVideos.map(v => (
+        <div key={v.id} className="bg-white rounded-2xl p-5 border" style={{ borderColor: COLORS.border }}>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex-1 min-w-0">
+              <div style={{ fontFamily: 'Fraunces', fontSize: '1rem', fontWeight: 500, color: COLORS.navy }}>{v.title}</div>
+              <div className="text-xs mt-1" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.platform} · SEO: {v.keyword}</div>
+            </div>
+            <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap" style={{ backgroundColor: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#D1FAE5' : v.verdict.includes('Good') ? '#FEF3C7' : '#FEE2E2', color: v.verdict.includes('Strong') || v.verdict.includes('winner') ? '#065F46' : v.verdict.includes('Good') ? '#92400E' : '#991B1B', fontFamily: 'DM Sans', fontWeight: 500 }}>{v.verdict}</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 pt-3 border-t" style={{ borderColor: COLORS.border }}>
+            <div><div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Views</div><div style={{ fontFamily: 'DM Sans', fontWeight: 600, color: COLORS.navy }}>{v.views.toLocaleString()}</div></div>
+            <div><div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Likes</div><div style={{ fontFamily: 'DM Sans', fontWeight: 600, color: COLORS.navy }}>{v.likes}</div></div>
+            <div><div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>CTR</div><div style={{ fontFamily: 'DM Sans', fontWeight: 600, color: COLORS.navy }}>{v.ctr}%</div></div>
+            <div><div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Ret.</div><div style={{ fontFamily: 'DM Sans', fontWeight: 600, color: COLORS.navy }}>{v.retention}%</div></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const Ads = () => {
   const [budget, setBudget] = useState(5000);
   return (
@@ -550,19 +537,19 @@ const Ads = () => {
             <div key={v.id} className="bg-white rounded-xl p-5 border flex items-center gap-4" style={{ borderColor: COLORS.border }}>
               <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: colorMap[v.recommend] }} />
               <div className="flex-1">
-                <div className="flex items-center gap-3 mb-1">
+                <div className="flex items-center gap-3 mb-1 flex-wrap">
                   <span style={{ fontFamily: 'DM Sans', fontWeight: 500, color: COLORS.navy }}>{v.title}</span>
                   <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: colorMap[v.recommend] + '20', color: colorMap[v.recommend], fontFamily: 'DM Sans', fontWeight: 600 }}>{labelMap[v.recommend]}</span>
                 </div>
                 <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.reason}</div>
               </div>
               {v.spend > 0 ? (
-                <div className="text-right">
+                <div className="text-right flex-shrink-0">
                   <div className="text-sm" style={{ fontFamily: 'DM Sans', fontWeight: 500, color: COLORS.navy }}>₹{v.spend.toLocaleString()}</div>
                   <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{v.reach.toLocaleString()} reach</div>
                 </div>
               ) : (
-                <button className="px-4 py-2 text-sm rounded-lg" style={{ backgroundColor: COLORS.navy, color: 'white', fontFamily: 'DM Sans' }}>Start Campaign</button>
+                <button className="px-4 py-2 text-sm rounded-lg flex-shrink-0" style={{ backgroundColor: COLORS.navy, color: 'white', fontFamily: 'DM Sans' }}>Start</button>
               )}
             </div>
           );
@@ -601,7 +588,7 @@ const Payments = () => (
     </div>
     <h3 className="mb-4" style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy }}>Payment History</h3>
     <div className="bg-white rounded-2xl border overflow-hidden" style={{ borderColor: COLORS.border }}>
-      <div className="grid grid-cols-12 px-6 py-3 text-xs uppercase tracking-wider" style={{ backgroundColor: COLORS.cream, color: COLORS.muted, fontFamily: 'DM Sans', fontWeight: 600 }}>
+      <div className="hidden md:grid grid-cols-12 px-6 py-3 text-xs uppercase tracking-wider" style={{ backgroundColor: COLORS.cream, color: COLORS.muted, fontFamily: 'DM Sans', fontWeight: 600 }}>
         <div className="col-span-3">Date</div><div className="col-span-3">Period</div><div className="col-span-3">Amount</div><div className="col-span-2">Status</div><div className="col-span-1 text-right">Invoice</div>
       </div>
       {[
@@ -609,12 +596,12 @@ const Payments = () => (
         { date: 'Feb 28, 2026', period: 'February 2026', amount: '₹2,50,000', status: 'Paid' },
         { date: 'Jan 28, 2026', period: 'January 2026', amount: '₹2,50,000', status: 'Paid' },
       ].map((p, i) => (
-        <div key={i} className="grid grid-cols-12 px-6 py-4 items-center border-t hover:bg-gray-50 transition-colors" style={{ borderColor: COLORS.border, fontFamily: 'DM Sans' }}>
-          <div className="col-span-3 text-sm" style={{ color: COLORS.navy, fontWeight: 500 }}>{p.date}</div>
-          <div className="col-span-3 text-sm" style={{ color: COLORS.muted }}>{p.period}</div>
-          <div className="col-span-3 text-sm" style={{ color: COLORS.navy, fontWeight: 500 }}>{p.amount}</div>
-          <div className="col-span-2"><span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#D1FAE5', color: '#065F46', fontFamily: 'DM Sans', fontWeight: 500 }}>{p.status}</span></div>
-          <div className="col-span-1 text-right"><button style={{ color: COLORS.muted }}><Download size={16} /></button></div>
+        <div key={i} className="md:grid md:grid-cols-12 px-6 py-4 md:items-center border-t hover:bg-gray-50 transition-colors" style={{ borderColor: COLORS.border, fontFamily: 'DM Sans' }}>
+          <div className="md:col-span-3 text-sm" style={{ color: COLORS.navy, fontWeight: 500 }}>{p.date}</div>
+          <div className="md:col-span-3 text-sm" style={{ color: COLORS.muted }}>{p.period}</div>
+          <div className="md:col-span-3 text-sm" style={{ color: COLORS.navy, fontWeight: 500 }}>{p.amount}</div>
+          <div className="md:col-span-2 mt-2 md:mt-0"><span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#D1FAE5', color: '#065F46', fontFamily: 'DM Sans', fontWeight: 500 }}>{p.status}</span></div>
+          <div className="hidden md:block md:col-span-1 text-right"><button style={{ color: COLORS.muted }}><Download size={16} /></button></div>
         </div>
       ))}
     </div>
@@ -663,28 +650,6 @@ const Analytics = () => (
         </div>
       </div>
     </div>
-    <div className="bg-white rounded-2xl p-6 border" style={{ borderColor: COLORS.border }}>
-      <h3 className="mb-5" style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy }}>Top Performing Topics</h3>
-      <div className="space-y-3">
-        {[
-          { topic: 'Patient stories & testimonials', views: 45200, trend: '+32%' },
-          { topic: 'Treatment transparency (prices, process)', views: 38100, trend: '+24%' },
-          { topic: 'Myth-busting content', views: 29800, trend: '+18%' },
-          { topic: 'Clinic tours & behind-the-scenes', views: 18400, trend: '+9%' },
-        ].map((t, i) => (
-          <div key={i} className="flex items-center justify-between py-2 border-b last:border-0" style={{ borderColor: COLORS.border }}>
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs" style={{ backgroundColor: COLORS.navy + '10', color: COLORS.navy, fontFamily: 'Fraunces', fontWeight: 600 }}>{i + 1}</div>
-              <span className="text-sm" style={{ color: COLORS.navy, fontFamily: 'DM Sans', fontWeight: 500 }}>{t.topic}</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{t.views.toLocaleString()} views</span>
-              <span className="text-xs" style={{ color: COLORS.green, fontFamily: 'DM Sans', fontWeight: 600 }}>{t.trend}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
   </div>
 );
 
@@ -722,21 +687,6 @@ const Feedback = () => {
           </div>
         </div>
       </div>
-      <h3 className="mt-8 mb-4" style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy }}>Past Feedback</h3>
-      <div className="space-y-3">
-        {feedbackHistory.map(f => (
-          <div key={f.id} className="bg-white rounded-xl p-4 border flex items-center gap-4" style={{ borderColor: COLORS.border }}>
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-1">
-                <span style={{ fontFamily: 'DM Sans', fontWeight: 500, color: COLORS.navy }}>{f.topic}</span>
-                <StatusBadge status={f.status} />
-              </div>
-              <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{f.summary} · {f.date}</div>
-            </div>
-            <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: COLORS.border, color: COLORS.muted, fontFamily: 'DM Sans' }}>{f.priority}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 };
@@ -753,11 +703,11 @@ const Upgrade = () => (
     </div>
     <div className="grid md:grid-cols-3 gap-6">
       {[
-        { name: 'Growth', tagline: 'More output, faster turnaround', features: ['4 extra reels per month', '2 extra long videos', 'Faster 48h turnaround', 'Extended topic research', 'Extra shoot day'], highlighted: false },
-        { name: 'Authority', tagline: 'Build a dominant personal brand', features: ['2 premium documentaries', 'Deep personal brand positioning', 'High-end thumbnail design', 'Long-form script depth', 'YouTube growth system'], highlighted: true },
-        { name: 'Scale', tagline: 'Convert content into patients', features: ['Managed ad campaigns', 'Conversion-focused creative', 'Landing page + funnel build', 'Multi-platform syndication', 'Dedicated account manager'], highlighted: false },
+        { name: 'Growth', tagline: 'More output, faster turnaround', features: ['4 extra reels per month', '2 extra long videos', 'Faster 48h turnaround'], highlighted: false },
+        { name: 'Authority', tagline: 'Build a dominant personal brand', features: ['2 premium documentaries', 'Deep brand positioning', 'High-end thumbnails'], highlighted: true },
+        { name: 'Scale', tagline: 'Convert content into patients', features: ['Managed ad campaigns', 'Conversion-focused creative', 'Landing page support'], highlighted: false },
       ].map(tier => (
-        <div key={tier.name} className="rounded-2xl p-6 border relative" style={{ borderColor: tier.highlighted ? COLORS.gold : COLORS.border, backgroundColor: tier.highlighted ? COLORS.navy : 'white', transform: tier.highlighted ? 'scale(1.02)' : 'none' }}>
+        <div key={tier.name} className="rounded-2xl p-6 border relative" style={{ borderColor: tier.highlighted ? COLORS.gold : COLORS.border, backgroundColor: tier.highlighted ? COLORS.navy : 'white' }}>
           {tier.highlighted && (<div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs" style={{ backgroundColor: COLORS.gold, color: 'white', fontFamily: 'DM Sans', fontWeight: 600 }}>RECOMMENDED</div>)}
           <div style={{ fontFamily: 'Fraunces', fontSize: '1.75rem', fontWeight: 500, color: tier.highlighted ? 'white' : COLORS.navy }}>{tier.name}</div>
           <div className="text-sm mb-6" style={{ color: tier.highlighted ? COLORS.goldLight : COLORS.muted, fontFamily: 'DM Sans' }}>{tier.tagline}</div>
@@ -777,13 +727,49 @@ const Upgrade = () => (
 );
 
 export default function App() {
+  const router = useRouter();
   const [section, setSection] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role, full_name, client_id')
+        .eq('user_id', session.user.id)
+        .single();
+      if (roleData) setUserRole(roleData);
+      setAuthLoading(false);
+    };
+    checkAuth();
+  }, [router]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FAFAF5' }}>
+        <div style={{ fontFamily: 'Fraunces', color: '#0A1628', fontSize: '1.5rem' }}>Loading...</div>
+      </div>
+    );
+  }
+
   const sectionMap = {
-    home: <DashboardHome />, ideas: <IdeasScripts />, shooting: <Shooting />, editing: <EditingReview />,
+    home: <DashboardHome userName={userRole?.full_name} />, ideas: <IdeasScripts />, shooting: <Shooting />, editing: <EditingReview />,
     thumbnails: <Thumbnails />, publishing: <Publishing />, ads: <Ads />, payments: <Payments />,
     analytics: <Analytics />, feedback: <Feedback />, upgrade: <Upgrade />,
   };
+
   return (
     <>
       <FontLoader />
@@ -803,11 +789,16 @@ export default function App() {
           </nav>
           <div className="p-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
             <div className="flex items-center gap-3 p-2 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
-              <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: COLORS.gold, fontFamily: 'Fraunces', color: 'white', fontWeight: 500 }}>DS</div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm truncate" style={{ color: 'white', fontFamily: 'DM Sans', fontWeight: 500 }}>Dr. Sharma</div>
-                <div className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.5)', fontFamily: 'DM Sans' }}>Premium Retainer</div>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: COLORS.gold, fontFamily: 'Fraunces', color: 'white', fontWeight: 500 }}>
+                {userRole?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U'}
               </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm truncate" style={{ color: 'white', fontFamily: 'DM Sans', fontWeight: 500 }}>{userRole?.full_name || 'User'}</div>
+                <div className="text-xs truncate capitalize" style={{ color: 'rgba(255,255,255,0.5)', fontFamily: 'DM Sans' }}>{userRole?.role || 'Loading...'}</div>
+              </div>
+              <button onClick={handleLogout} className="p-1 rounded hover:bg-white/10" title="Logout">
+                <LogOut size={14} style={{ color: 'rgba(255,255,255,0.6)' }} />
+              </button>
             </div>
           </div>
         </aside>
@@ -817,7 +808,7 @@ export default function App() {
               <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1" style={{ color: COLORS.navy }}>{sidebarOpen ? <X size={22} /> : <Menu size={22} />}</button>
               <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ borderColor: COLORS.border, backgroundColor: 'white' }}>
                 <Search size={15} style={{ color: COLORS.muted }} />
-                <input placeholder="Search videos, ideas, invoices..." className="text-sm bg-transparent outline-none w-64" style={{ fontFamily: 'DM Sans' }} />
+                <input placeholder="Search..." className="text-sm bg-transparent outline-none w-64" style={{ fontFamily: 'DM Sans' }} />
               </div>
             </div>
             <div className="flex items-center gap-2">
