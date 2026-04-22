@@ -150,9 +150,9 @@ const ProgressBar = ({ value, total, color }) => {
 };
 
 const SectionHeader = ({ title, subtitle, action }) => (
-  <div className="flex items-end justify-between mb-8">
+  <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6 sm:mb-8">
     <div>
-      <h1 style={{ fontFamily: 'Fraunces', fontSize: '2.25rem', fontWeight: 500, color: COLORS.navy, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{title}</h1>
+      <h1 className="text-3xl sm:text-4xl" style={{ fontFamily: 'Fraunces', fontWeight: 500, color: COLORS.navy, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{title}</h1>
       {subtitle && <p className="mt-2 text-sm" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>{subtitle}</p>}
     </div>
     {action}
@@ -518,7 +518,7 @@ const Ads = () => {
       <div className="grid lg:grid-cols-3 gap-6 mb-6">
         <div className="lg:col-span-2 bg-white rounded-2xl p-6 border" style={{ borderColor: COLORS.border }}>
           <h3 className="mb-5" style={{ fontFamily: 'Fraunces', fontSize: '1.25rem', fontWeight: 500, color: COLORS.navy }}>Daily Ad Budget</h3>
-          <div className="grid grid-cols-4 gap-3 mb-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             {[5000, 7500, 10000, 'Custom'].map(amt => (
               <button key={amt} onClick={() => typeof amt === 'number' && setBudget(amt)} className="py-4 rounded-xl border-2 text-center transition-all"
                 style={{ borderColor: budget === amt ? COLORS.navy : COLORS.border, backgroundColor: budget === amt ? COLORS.navy + '08' : 'white', fontFamily: 'DM Sans' }}>
