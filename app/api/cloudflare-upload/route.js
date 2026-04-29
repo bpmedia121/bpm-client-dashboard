@@ -1,70 +1,66 @@
 import { NextResponse } from 'next/server';
 
-const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
-const CF_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
-
-export async function POST(req) {
+export async function POST(request) {
   try {
-    if (!CF_ACCOUNT_ID || !CF_API_TOKEN) {
-      return NextResponse.json({ 
-        error: 'Cloudflare not configured. Add CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN to .env.local',
-        configured: false 
-      }, { status: 503 });
+    const { title } = await request.json();
+    
+    const libraryId = process.env.BUNNY_LIBRARY_ID;
+    const apiKey = process.env.BUNNY_API_KEY;
+    
+    if (!libraryId || !apiKey) {
+      return NextResponse.json({ error: 'Bunny credentials not configured' }, { status: 500 });
     }
-
-    const { video_id, file_size_bytes } = await req.json();
-
-    // Get one-time upload URL from Cloudflare
-    const cfRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/stream/direct_upload`, {
+    
+    const createRes = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${CF_API_TOKEN}`,
+        'AccessKey': apiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        maxDurationSeconds: 3600,
-        meta: { video_id: video_id || 'unknown' },
-      }),
+      body: JSON.stringify({ title: title || 'Untitled' }),
     });
-
-    const cfData = await cfRes.json();
-
-    if (!cfRes.ok) {
-      return NextResponse.json({ error: cfData.errors || 'Cloudflare error' }, { status: 500 });
+    
+    if (!createRes.ok) {
+      const errorText = await createRes.text();
+      return NextResponse.json({ error: 'Failed to create video', details: errorText }, { status: 500 });
     }
-
+    
+    const videoData = await createRes.json();
+    const videoId = videoData.guid;
+    
     return NextResponse.json({
       success: true,
-      uploadURL: cfData.result.uploadURL,
-      uid: cfData.result.uid,
+      videoId: videoId,
+      uploadUrl: `https://video.bunnycdn.com/library/${libraryId}/videos/${videoId}`,
+      apiKey: apiKey,
+      embedUrl: `https://iframe.mediadelivery.net/embed/${libraryId}/${videoId}`,
     });
+    
   } catch (err) {
+    console.error('Bunny upload error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
-export async function DELETE(req) {
+export async function DELETE(request) {
   try {
-    if (!CF_ACCOUNT_ID || !CF_API_TOKEN) {
-      return NextResponse.json({ error: 'Cloudflare not configured' }, { status: 503 });
-    }
-
-    const { uid } = await req.json();
-    if (!uid) return NextResponse.json({ error: 'UID required' }, { status: 400 });
-
-    const cfRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/stream/${uid}`, {
+    const { searchParams } = new URL(request.url);
+    const videoId = searchParams.get('videoId');
+    
+    const libraryId = process.env.BUNNY_LIBRARY_ID;
+    const apiKey = process.env.BUNNY_API_KEY;
+    
+    const res = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos/${videoId}`, {
       method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${CF_API_TOKEN}`,
-      },
+      headers: { 'AccessKey': apiKey },
     });
-
-    if (!cfRes.ok) {
-      const data = await cfRes.json();
-      return NextResponse.json({ error: data.errors || 'Cloudflare delete failed' }, { status: 500 });
+    
+    if (!res.ok) {
+      return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
     }
-
+    
     return NextResponse.json({ success: true });
+    
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

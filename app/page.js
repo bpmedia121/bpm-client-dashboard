@@ -1315,6 +1315,9 @@ const DashboardHome = ({ userName, clientId, setSection }) => {
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [uploadMethod, setUploadMethod] = useState('drive_link');
     const [uploadDriveLink, setUploadDriveLink] = useState('');
+    const [uploadFile, setUploadFile] = useState(null);
+const [uploadProgress, setUploadProgress] = useState(0);
+const [isUploading, setIsUploading] = useState(false);
     const [showReviewPanel, setShowReviewPanel] = useState(null);
     const [newCommentText, setNewCommentText] = useState('');
     const [newCommentTimestamp, setNewCommentTimestamp] = useState(0);
@@ -1783,48 +1786,104 @@ useEffect(() => {
       setActivePause(null);
     };
 
-    // Submit final video upload (Drive link)
-    const handleSubmitUpload = async () => {
-      if (uploadMethod === 'drive_link' && !uploadDriveLink.trim()) {
-        alert('Please paste the Drive link.');
+    // Submit final video upload (Bunny CDN or Drive link)
+  const handleSubmitUpload = async () => {
+    if (uploadMethod === 'drive_link' && !uploadDriveLink.trim()) {
+      alert('Please paste the Drive link.');
+      return;
+    }
+    if (uploadMethod === 'bunny_upload' && !uploadFile) {
+      alert('Please choose a video file to upload.');
+      return;
+    }
+
+    const updates = {
+      status: 'Ready for Review',
+      editing_completed_at: new Date().toISOString(),
+      completion_checklist: checklist,
+      final_video_uploaded_at: new Date().toISOString(),
+      upload_method: uploadMethod,
+    };
+
+    if (uploadMethod === 'drive_link') {
+      updates.final_video_link = uploadDriveLink;
+    }
+
+    // BUNNY UPLOAD FLOW
+    if (uploadMethod === 'bunny_upload') {
+      try {
+        setIsUploading(true);
+        setUploadProgress(0);
+
+        // Step 1: Create video entry in Bunny
+        const createRes = await fetch('/api/cloudflare-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: activeSession.videos.title }),
+        });
+        const createData = await createRes.json();
+        if (!createData.success) {
+          alert('Failed to create video on Bunny: ' + (createData.error || 'unknown'));
+          setIsUploading(false);
+          return;
+        }
+
+        // Step 2: Upload file directly to Bunny with progress
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              setUploadProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          });
+          xhr.addEventListener('load', () => {
+            if (xhr.status === 200) resolve();
+            else reject(new Error('Upload failed: ' + xhr.status));
+          });
+          xhr.addEventListener('error', () => reject(new Error('Network error')));
+          xhr.open('PUT', createData.uploadUrl);
+          xhr.setRequestHeader('AccessKey', createData.apiKey);
+          xhr.send(uploadFile);
+        });
+
+        updates.bunny_video_id = createData.videoId;
+        updates.bunny_embed_url = createData.embedUrl;
+        updates.final_video_link = createData.embedUrl;
+
+        setIsUploading(false);
+      } catch (err) {
+        alert('Upload error: ' + err.message);
+        setIsUploading(false);
         return;
       }
+    }
 
-      const updates = {
-        status: 'Ready for Review',
-        editing_completed_at: new Date().toISOString(),
-        completion_checklist: checklist,
-        final_video_uploaded_at: new Date().toISOString(),
-        upload_method: uploadMethod,
-      };
-      if (uploadMethod === 'drive_link') {
-        updates.final_video_link = uploadDriveLink;
-      }
+    // Close work session
+    await supabase.from('work_sessions').update({
+      ended_at: new Date().toISOString(),
+      total_seconds: workTimer,
+      is_active: false,
+    }).eq('id', activeSession.id);
 
-      // Close work session
-      await supabase.from('work_sessions').update({
-        ended_at: new Date().toISOString(),
-        total_seconds: workTimer,
-        is_active: false,
-      }).eq('id', activeSession.id);
+    // Update video
+    await supabase.from('videos').update(updates).eq('id', activeSession.video_id);
 
-      // Update video
-      await supabase.from('videos').update(updates).eq('id', activeSession.video_id);
+    setActiveSession(null);
+    setShowUploadModal(false);
+    setShowChecklist(false);
+    setUploadDriveLink('');
+    setUploadFile(null);
+    setUploadProgress(0);
+    setUploadMethod('drive_link');
+    setChecklist({ color_grading: false, audio_leveled: false, captions_added: false, watermark_visible: false, export_rendered: false, thumbnail_saved: false, files_backed_up: false });
+    setWorkTimer(0);
 
-      setActiveSession(null);
-      setShowUploadModal(false);
-      setShowChecklist(false);
-      setUploadDriveLink('');
-      setUploadMethod('drive_link');
-      setChecklist({ color_grading: false, audio_leveled: false, captions_added: false, watermark_visible: false, export_rendered: false, thumbnail_saved: false, files_backed_up: false });
-      setWorkTimer(0);
+    // Refresh
+    const { data: vids } = await supabase.from('videos').select('*, projects(name, color, icon)').in('status', ['Shot', 'Not Started', 'In Progress', 'Ready for Review', 'Changes Requested', 'Approved']).order('deadline', { ascending: true, nullsFirst: false });
+    if (vids) setVideos(vids);
 
-      // Refresh
-      const { data: vids } = await supabase.from('videos').select('*, projects(name, color, icon)').in('status', ['Shot', 'Not Started', 'In Progress', 'Ready for Review', 'Changes Requested', 'Approved']).order('deadline', { ascending: true, nullsFirst: false });
-      if (vids) setVideos(vids);
-
-      alert('Video sent to client for review!');
-    };
+    alert('Video sent to client for review!');
+  };
 
     // Post a comment (Dr. Vikas review)
     const handlePostComment = async (videoId, type) => {
@@ -1986,10 +2045,10 @@ useEffect(() => {
               <h3 className="mb-2 text-xs uppercase tracking-wider" style={{ color: COLORS.muted, fontFamily: 'DM Sans', fontWeight: 700, letterSpacing: '0.1em' }}>🟡 Ready for Your Review ({readyForReview.length})</h3>
               {readyForReview.map(v => {
                 const videoComments = comments.filter(c => c.video_id === v.id);
-                const driveEmbed = v.final_video_link ? (() => {
+                const videoEmbed = v.bunny_embed_url ? v.bunny_embed_url : (v.final_video_link ? (() => {
                   const m = v.final_video_link.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                  return m ? `https://drive.google.com/file/d/${m[1]}/preview` : null;
-                })() : null;
+                  return m ? `https://drive.google.com/file/d/${m[1]}/preview` : v.final_video_link;
+                })() : null);
 
                 return (
                   <div key={v.id} className="bg-white rounded-lg border mb-3" style={{ borderColor: COLORS.gold }}>
@@ -1998,10 +2057,10 @@ useEffect(() => {
                       <div className="text-xs" style={{ color: COLORS.muted, fontFamily: 'DM Sans' }}>Ready since {v.editing_completed_at ? new Date(v.editing_completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'today'}</div>
                     </div>
 
-                    {driveEmbed && (
+                    {videoEmbed && (
                       <div className="px-3 pb-3">
                         <div className="aspect-video w-full rounded-lg overflow-hidden bg-black">
-                          <iframe src={driveEmbed} width="100%" height="100%" allow="autoplay" allowFullScreen style={{ border: 0 }} />
+                        <iframe src={videoEmbed} width="100%" height="100%" allow="autoplay" allowFullScreen style={{ border: 0 }} />
                         </div>
                       </div>
                     )}
@@ -2657,13 +2716,47 @@ useEffect(() => {
                   </a>
                 )}
 
-                <label className="text-xs block mb-1" style={{ color: COLORS.navy, fontFamily: 'DM Sans', fontWeight: 600 }}>Paste your final video Drive link:</label>
-                <input spellCheck="false" type="text" value={uploadDriveLink} onChange={(e) => setUploadDriveLink(e.target.value)} placeholder="https://drive.google.com/file/d/..." className="w-full px-3 py-2 rounded-lg border text-sm mb-4" style={{ borderColor: COLORS.border, fontFamily: 'DM Sans' }} />
+            {/* Method toggle */}
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setUploadMethod('bunny_upload')} className="flex-1 py-2 rounded-lg text-xs font-medium border" style={{ backgroundColor: uploadMethod === 'bunny_upload' ? COLORS.navy : 'white', color: uploadMethod === 'bunny_upload' ? 'white' : COLORS.navy, borderColor: COLORS.border, fontFamily: 'DM Sans' }}>📤 Upload Video File</button>
+              <button onClick={() => setUploadMethod('drive_link')} className="flex-1 py-2 rounded-lg text-xs font-medium border" style={{ backgroundColor: uploadMethod === 'drive_link' ? COLORS.navy : 'white', color: uploadMethod === 'drive_link' ? 'white' : COLORS.navy, borderColor: COLORS.border, fontFamily: 'DM Sans' }}>🔗 Paste Drive Link</button>
+            </div>
 
-                <div className="flex gap-2">
-                  <button onClick={handleSubmitUpload} className="flex-1 py-2 rounded-lg text-sm font-medium" style={{ backgroundColor: COLORS.navy, color: 'white', fontFamily: 'DM Sans' }}>Send to Client for Review</button>
-                  <button onClick={() => setShowUploadModal(false)} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: COLORS.border, color: COLORS.navy, fontFamily: 'DM Sans' }}>Back</button>
-                </div>
+            {/* BUNNY FILE UPLOAD MODE */}
+            {uploadMethod === 'bunny_upload' && (
+              <div className="mb-4">
+                <label className="text-xs block mb-2" style={{ color: COLORS.navy, fontFamily: 'DM Sans', fontWeight: 600 }}>Choose final video file:</label>
+                <input type="file" accept="video/*" onChange={(e) => setUploadFile(e.target.files[0])} disabled={isUploading} className="w-full px-3 py-2 rounded-lg border text-sm" style={{ borderColor: COLORS.border, fontFamily: 'DM Sans' }} />
+                {uploadFile && !isUploading && (
+                  <div className="text-xs mt-2" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>
+                    Selected: {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
+                  </div>
+                )}
+                {isUploading && (
+                  <div className="mt-3">
+                    <div className="text-xs mb-1" style={{ color: COLORS.navy, fontFamily: 'DM Sans' }}>Uploading to Bunny CDN... {uploadProgress}%</div>
+                    <div className="w-full h-2 rounded-full" style={{ backgroundColor: COLORS.border }}>
+                      <div className="h-2 rounded-full transition-all" style={{ width: `${uploadProgress}%`, backgroundColor: COLORS.gold }}></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* DRIVE LINK MODE */}
+            {uploadMethod === 'drive_link' && (
+              <div className="mb-4">
+                <label className="text-xs block mb-1" style={{ color: COLORS.navy, fontFamily: 'DM Sans', fontWeight: 600 }}>Paste your final video Drive link:</label>
+                <input spellCheck="false" type="text" value={uploadDriveLink} onChange={(e) => setUploadDriveLink(e.target.value)} placeholder="https://drive.google.com/file/d/..." className="w-full px-3 py-2 rounded-lg border text-sm" style={{ borderColor: COLORS.border, fontFamily: 'DM Sans' }} />
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={handleSubmitUpload} disabled={isUploading} className="flex-1 py-2 rounded-lg text-sm font-medium" style={{ backgroundColor: isUploading ? COLORS.border : COLORS.navy, color: 'white', fontFamily: 'DM Sans', opacity: isUploading ? 0.6 : 1 }}>
+                {isUploading ? `Uploading ${uploadProgress}%...` : 'Send to Client for Review'}
+              </button>
+              <button onClick={() => setShowUploadModal(false)} disabled={isUploading} className="px-4 py-2 rounded-lg text-sm border" style={{ borderColor: COLORS.border, color: COLORS.navy, fontFamily: 'DM Sans' }}>Back</button>
+            </div>
               </div>
             </div>
           )}
